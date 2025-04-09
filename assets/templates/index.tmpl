@@ -27,6 +27,7 @@
 
         table {
             width: 100%;
+            border-radius: 10px;
             border-collapse: collapse;
         }
 
@@ -38,7 +39,7 @@
         }
 
         th {
-            background-color: #2181b5;
+            background-color: #9094fb;
             color: #fff;
         }
 
@@ -54,7 +55,7 @@
             height: 28px;
             color: white;
             background-color: #28a745;
-            border: none;
+            border-radius: 10px;
             padding: 8px 12px;
             cursor: pointer;
             text-decoration-line: none;
@@ -71,6 +72,8 @@
         button {
             margin-bottom: 10px;
             width: 100%;
+            border-radius: 10px;
+            border: none;
             box-sizing: border-box;
             padding: 12px;
         }
@@ -78,7 +81,7 @@
         select {
             background-color: #fff;
             border: 1px solid #ced4da;
-            border-radius: 4px;
+            border-radius: 10px;
             color: #495057;
         }
 
@@ -91,7 +94,8 @@
         .send {
             border: none;
             color: white;
-            background-color: #2181b5;
+            border-radius: 10px;
+            background-color: #9094fb;
         }
     </style>
 </head>
@@ -124,7 +128,7 @@
                     <td>
                         <div class="but-container">
                             <a class="but" href="/del/{{.Id}}">删除</a>
-                            <a class="but" style="background-color: #{{if eq .Status 0}}d93b3b{{else}}2181b5{{end}};" href="/do/{{.Id}}">{{if eq .Status 0}}停用{{else}}启用{{end}}</a>
+                            <a class="but" style="background-color: #{{if eq .Status 0}}d93b3b{{else}}9094fb{{end}};" href="/do/{{.Id}}">{{if eq .Status 0}}停用{{else}}启用{{end}}</a>
                         </div>
                     </td>
                     <td>{{.Ps}}</td>
