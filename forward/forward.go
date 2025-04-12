@@ -145,29 +145,36 @@ func (cs *ConnectionStats) handleTCPConnection(clientConn net.Conn, ctx context.
 	cs.TCPConnections = append(cs.TCPConnections, clientConn, remoteConn) // 添加连接到列表
 	var copyWG sync.WaitGroup
 	copyWG.Add(2)
+
+	// 客户端 -> 远程
 	go func() {
 		defer copyWG.Done()
-		if err := cs.copyBytes(clientConn, remoteConn); err != nil {
-			log.Println("复制字节时发生错误:", err)
-			cancel() // Assuming `cancel` is the cancel function from the context
+		if err := cs.copyBytes(remoteConn, clientConn, "client->remote"); err != nil {
+			cancel() // 触发主流程退出
 		}
 	}()
+
+	// 远程 -> 客户端
 	go func() {
 		defer copyWG.Done()
-		if err := cs.copyBytes(remoteConn, clientConn); err != nil {
-			log.Println("复制字节时发生错误:", err)
-			cancel() // Assuming `cancel` is the cancel function from the context
+		if err := cs.copyBytes(clientConn, remoteConn, "remote->client"); err != nil {
+			cancel() // 触发主流程退出
 		}
 	}()
-	for {
-		select {
-		case <-ctx.Done():
-			// 如果上级 context 被取消，停止接收新连接
-			return
-		default:
-			copyWG.Wait()
-			return
-		}
+
+	// 等待所有拷贝完成或上下文取消
+	waitCh := make(chan struct{})
+	go func() {
+		copyWG.Wait()
+		close(waitCh)
+	}()
+
+	select {
+	case <-ctx.Done():
+		// 确保等待所有goroutine完成后再关闭连接
+		<-waitCh
+	case <-waitCh:
+		// 正常退出
 	}
 }
 
@@ -211,7 +218,14 @@ func (cs *ConnectionStats) forwardUDPMessage(localConn *net.UDPConn, remoteAddr 
 
 }
 
-func (cs *ConnectionStats) copyBytes(dst, src net.Conn) error {
+func (cs *ConnectionStats) copyBytes(dst, src net.Conn, direction string) error {
+	defer func() {
+		// 半关闭写入端（仅对TCP连接有效）
+		if tcpDst, ok := dst.(*net.TCPConn); ok {
+			tcpDst.CloseWrite()
+		}
+	}()
+
 	buf := bufPool.Get().([]byte)
 	defer bufPool.Put(buf)
 	for {
@@ -222,22 +236,18 @@ func (cs *ConnectionStats) copyBytes(dst, src net.Conn) error {
 			cs.TotalBytesLock.Unlock()
 			_, err := dst.Write(buf[:n])
 			if err != nil {
-				log.Println("【"+cs.LocalPort+"】写入目标时发生错误:", err)
+				log.Printf("【%s】方向 %s 写入失败: %v\n", cs.LocalPort, direction, err)
 				return err
 			}
 		}
-		if err == io.EOF {
-			break
-		}
 		if err != nil {
-			log.Println("【"+cs.LocalPort+"】从源读取时发生错误:", err)
-			break
+			if err == io.EOF {
+				return nil // 正常结束
+			}
+			log.Printf("【%s】方向 %s 读取失败: %v\n", cs.LocalPort, direction, err)
+			return err
 		}
 	}
-	// 关闭连接
-	dst.Close()
-	src.Close()
-	return nil
 }
 
 // 定时打印和处理流量变化
